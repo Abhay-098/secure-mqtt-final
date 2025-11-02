@@ -3,6 +3,7 @@ from flask_socketio import SocketIO
 import subprocess, os, threading, time, sys
 
 app = Flask(__name__)
+# Render requires WebSocket connections to be allowed from its public URL
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 @app.route('/')
@@ -11,7 +12,7 @@ def index():
 
 @app.route('/generate', methods=['POST'])
 def generate():
-    # Simulate cert generation (Render cannot run shell scripts)
+    # Render cannot run shell scripts like generate_certs.sh
     output = "✅ Certificates generated (simulated — Render cannot run shell commands)"
     return jsonify({'status': 'ok', 'output': output})
 
@@ -23,6 +24,7 @@ def start_client():
     payload = request.json.get('payload', 'Hello MQTT!')
     secure = request.json.get('secure', False)
 
+    # Note: client_sim.py uses the public test.mosquitto.org broker.
     cmd = [sys.executable, 'client_sim.py', '--mode', mode,
            '--client', client, '--topic', topic, '--payload', payload]
     if secure:
@@ -50,4 +52,6 @@ def handle_connect():
     print("🟢 Client connected to WebSocket")
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
+    # 💥 CRUCIAL FIX for Render: Use the dynamic $PORT environment variable
+    port = int(os.environ.get('PORT', 5000))
+    socketio.run(app, debug=False, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)
