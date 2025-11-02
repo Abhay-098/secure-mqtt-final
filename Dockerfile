@@ -8,4 +8,5 @@ RUN apt-get update && apt-get install -y openssl && \
 
 EXPOSE 5000
 
-CMD ["python", "app.py"]
+# 💥 CRITICAL FIX: Use Gunicorn with Eventlet worker
+CMD ["gunicorn", "--worker-class", "eventlet", "-w", "1", "app:socketio"]
