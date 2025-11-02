@@ -11,17 +11,8 @@ def index():
 
 @app.route('/generate', methods=['POST'])
 def generate():
-    script = os.path.join(os.getcwd(), 'generate_certs.sh')
-    try:
-        if os.path.exists(script) and os.access(script, os.X_OK):
-            proc = subprocess.run([script], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            output = proc.stdout
-        else:
-            raise PermissionError("Render environment: script execution disabled")
-    except PermissionError:
-        output = "✅ Certificates generated (simulated for Render demo — execution restricted)"
-    except Exception as e:
-        output = f"⚠️ Error generating certificates: {e}"
+    # Simulate cert generation (Render cannot run shell scripts)
+    output = "✅ Certificates generated (simulated — Render cannot run shell commands)"
     return jsonify({'status': 'ok', 'output': output})
 
 @app.route('/start_client', methods=['POST'])
@@ -32,7 +23,8 @@ def start_client():
     payload = request.json.get('payload', 'Hello MQTT!')
     secure = request.json.get('secure', False)
 
-    cmd = [sys.executable, 'client_sim.py', '--mode', mode, '--client', client, '--topic', topic, '--payload', payload]
+    cmd = [sys.executable, 'client_sim.py', '--mode', mode,
+           '--client', client, '--topic', topic, '--payload', payload]
     if secure:
         cmd.append('--secure')
 
