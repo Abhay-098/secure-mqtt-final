@@ -1,4 +1,4 @@
-import argparse, ssl, time, os, sys
+import argparse, ssl, time, os
 import paho.mqtt.client as mqtt
 
 BROKER = "test.mosquitto.org"
@@ -11,52 +11,47 @@ def make_client(client_id, secure):
         client.tls_insecure_set(True)
     return client
 
-def on_connect(client, userdata, flags, rc, properties=None):
-    print(f"✅ Connected with result code {rc}")
+def on_connect(client, userdata, flags, rc):
+    print(f"✅ Connected to broker with result code {rc}")
+    if userdata.get("topic") and userdata.get("mode") == "sub":
+        client.subscribe(userdata["topic"])
+        print(f"📡 Subscribed to {userdata['topic']}")
 
 def on_message(client, userdata, msg):
-    print(f"📡 RECV <- topic={msg.topic} payload={msg.payload.decode()}")
+    print(f"💬 Message received → topic={msg.topic} payload={msg.payload.decode()}")
 
 def run_pub(client_id, topic, payload, secure):
     port = 8883 if secure else 1883
     client = make_client(client_id, secure)
+    client.user_data_set({"mode": "pub", "topic": topic})
     client.on_connect = on_connect
     client.connect(BROKER, port)
     client.loop_start()
-    time.sleep(1)
+    time.sleep(2)
     for i in range(3):
         msg = f"{payload} [{i}]"
-        print(f"🚀 PUB -> {msg}")
+        print(f"🚀 Publishing → {msg}")
         client.publish(topic, msg)
-        time.sleep(1)
+        time.sleep(2)
     client.loop_stop()
     client.disconnect()
-    print("✅ Publisher finished sending.")
+    print("✅ Publisher finished sending messages.")
 
 def run_sub(client_id, topic, secure):
     port = 8883 if secure else 1883
     client = make_client(client_id, secure)
+    client.user_data_set({"mode": "sub", "topic": topic})
     client.on_connect = on_connect
     client.on_message = on_message
     client.connect(BROKER, port)
-    client.subscribe(topic)
-    client.loop_start()
-    print(f"📡 Subscribed to {topic} (Secure={secure}) — waiting for messages...")
-    try:
-        for _ in range(15):  # Keep alive ~15s
-            time.sleep(1)
-    except KeyboardInterrupt:
-        pass
-    client.loop_stop()
-    client.disconnect()
-    print("🛑 Subscriber stopped.")
+    client.loop_forever()
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--mode", choices=["pub", "sub"], default="pub")
     p.add_argument("--client", default="client1")
     p.add_argument("--topic", default="/vit/test")
-    p.add_argument("--payload", default="hello")
+    p.add_argument("--payload", default="Hello MQTT!")
     p.add_argument("--secure", action="store_true")
     args = p.parse_args()
 
