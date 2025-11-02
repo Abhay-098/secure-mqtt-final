@@ -1,77 +1,81 @@
 import argparse, ssl, time, os
 import paho.mqtt.client as mqtt
+import sys
 
 BROKER = "test.mosquitto.org"
-CERT_DIR = os.path.join(os.getcwd(), "certs")
 
-def make_client(client_id, secure):
+# --- Client Functions (Now accept a custom logger) ---
+
+def make_client(client_id, secure, logger):
     client = mqtt.Client(client_id=client_id)
     if secure:
-        # Simplifies TLS connection for the public broker (test.mosquitto.org)
         client.tls_set(cert_reqs=ssl.CERT_NONE, tls_version=ssl.PROTOCOL_TLS_CLIENT)
         client.tls_insecure_set(True)
     return client
 
 def on_connect(client, userdata, flags, rc):
+    logger = userdata.get("logger")
     if rc == 0:
-        # This log message will now be successfully streamed
-        print(f"✅ Connected successfully to broker ({'Secure' if userdata.get('secure') else 'Unsecure'})")
+        logger(f"✅ Connected successfully to broker ({'Secure' if userdata.get('secure') else 'Unsecure'})")
         if userdata.get("mode") == "sub":
             topic = userdata["topic"]
             client.subscribe(topic)
-            print(f"📡 Subscribed to topic: {topic}")
+            logger(f"📡 Subscribed to topic: {topic}")
     else:
-        print(f"❌ Connection failed with code {rc}. Please check network or broker status.")
+        logger(f"❌ Connection failed with code {rc}. Please check network or broker status.")
 
 def on_message(client, userdata, msg):
-    print(f"💬 Message received → topic={msg.topic} payload={msg.payload.decode()}")
+    logger = userdata.get("logger")
+    logger(f"💬 Message received → topic={msg.topic} payload={msg.payload.decode()}")
 
-def run_pub(client_id, topic, payload, secure):
+def run_pub(client_id, topic, payload, secure, logger=print):
     port = 8883 if secure else 1883
-    client = make_client(client_id, secure)
-    client.user_data_set({"mode": "pub", "topic": topic, "secure": secure})
+    client = make_client(client_id, secure, logger)
+    client.user_data_set({"mode": "pub", "topic": topic, "secure": secure, "logger": logger})
     client.on_connect = on_connect
     
     try:
         client.connect(BROKER, port)
     except Exception as e:
-        print(f"❌ Publisher connection error: {e}")
+        logger(f"❌ Publisher connection error: {e}")
         return
 
     client.loop_start()
     time.sleep(2)
     for i in range(3):
         msg = f"{payload} [{i}]"
-        print(f"🚀 Publishing → {msg}")
+        logger(f"🚀 Publishing → {msg}")
         client.publish(topic, msg)
         time.sleep(2)
     client.loop_stop()
     client.disconnect()
-    print("✅ Publisher finished sending messages.")
+    logger("✅ Publisher finished sending messages.")
 
-def run_sub(client_id, topic, secure):
+def run_sub(client_id, topic, secure, logger=print):
     port = 8883 if secure else 1883
-    client = make_client(client_id, secure)
-    client.user_data_set({"mode": "sub", "topic": topic, "secure": secure})
+    client = make_client(client_id, secure, logger)
+    client.user_data_set({"mode": "sub", "topic": topic, "secure": secure, "logger": logger})
     client.on_connect = on_connect
     client.on_message = on_message
     
     try:
         client.connect(BROKER, port)
     except Exception as e:
-        print(f"❌ Subscriber connection error: {e}")
+        logger(f"❌ Subscriber connection error: {e}")
         return
 
-    # CRUCIAL FIX: Use a controlled loop instead of loop_forever()
-    # This prevents the blocking call from being terminated by the host environment.
-    print(f"📡 Subscriber running and listening for 30 seconds...")
-    for _ in range(30): # Loop for 30 seconds
-        client.loop(timeout=1.0) # Check for messages every second
-        time.sleep(1)
-
+    logger(f"📡 Subscriber running and listening for 30 seconds...")
+    client.loop_start()
+    
+    # Run loop for 30 seconds to simulate a live subscriber
+    time.sleep(30) 
+    
+    client.loop_stop()
     client.disconnect()
-    print("✅ Subscriber finished listening (after 30 seconds).")
+    logger("✅ Subscriber finished listening (after 30 seconds).")
 
+
+# --- Main Block (Kept for local testing, now calls with print()) ---
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
@@ -82,7 +86,9 @@ if __name__ == "__main__":
     p.add_argument("--secure", action="store_true")
     args = p.parse_args()
 
+    # When run directly, use the default print()
     if args.mode == "pub":
-        run_pub(args.client, args.topic, args.payload, args.secure)
+        run_pub(args.client, args.topic, args.payload, args.secure, logger=print)
     else:
-        run_sub(args.client, args.topic, args.payload, args.secure) # Added payload argument for consistency
+        # Note: If running locally via terminal, the subscriber will block for 30 seconds.
+        run_sub(args.client, args.topic, args.payload, args.secure, logger=print)
