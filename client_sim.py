@@ -12,10 +12,14 @@ def make_client(client_id, secure):
     return client
 
 def on_connect(client, userdata, flags, rc):
-    print(f"✅ Connected to broker with result code {rc}")
-    if userdata.get("topic") and userdata.get("mode") == "sub":
-        client.subscribe(userdata["topic"])
-        print(f"📡 Subscribed to {userdata['topic']}")
+    if rc == 0:
+        print(f"✅ Connected successfully to broker ({'Secure' if userdata.get('secure') else 'Unsecure'})")
+        if userdata.get("mode") == "sub":
+            topic = userdata["topic"]
+            client.subscribe(topic)
+            print(f"📡 Subscribed to topic: {topic}")
+    else:
+        print(f"❌ Connection failed with code {rc}")
 
 def on_message(client, userdata, msg):
     print(f"💬 Message received → topic={msg.topic} payload={msg.payload.decode()}")
@@ -23,7 +27,7 @@ def on_message(client, userdata, msg):
 def run_pub(client_id, topic, payload, secure):
     port = 8883 if secure else 1883
     client = make_client(client_id, secure)
-    client.user_data_set({"mode": "pub", "topic": topic})
+    client.user_data_set({"mode": "pub", "topic": topic, "secure": secure})
     client.on_connect = on_connect
     client.connect(BROKER, port)
     client.loop_start()
@@ -40,7 +44,7 @@ def run_pub(client_id, topic, payload, secure):
 def run_sub(client_id, topic, secure):
     port = 8883 if secure else 1883
     client = make_client(client_id, secure)
-    client.user_data_set({"mode": "sub", "topic": topic})
+    client.user_data_set({"mode": "sub", "topic": topic, "secure": secure})
     client.on_connect = on_connect
     client.on_message = on_message
     client.connect(BROKER, port)
