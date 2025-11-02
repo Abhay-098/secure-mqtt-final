@@ -1,61 +1,66 @@
-import argparse, ssl, time
+import argparse, ssl, time, os, sys
 import paho.mqtt.client as mqtt
 
-BROKER_UNSECURE = "test.mosquitto.org"
-BROKER_SECURE = "test.mosquitto.org"
-PORT_UNSECURE = 1883
-PORT_SECURE = 8883
+BROKER = "test.mosquitto.org"
+CERT_DIR = os.path.join(os.getcwd(), "certs")
 
-def on_connect(client, userdata, flags, rc):
-    print("✅ Connected with result code", rc)
-    if userdata["mode"] == "sub":
-        client.subscribe(userdata["topic"])
-        print(f"📡 Subscribed to {userdata['topic']}")
+def make_client(client_id, secure):
+    client = mqtt.Client(client_id=client_id)
+    if secure:
+        client.tls_set(cert_reqs=ssl.CERT_NONE, tls_version=ssl.PROTOCOL_TLS_CLIENT)
+        client.tls_insecure_set(True)
+    return client
+
+def on_connect(client, userdata, flags, rc, properties=None):
+    print(f"✅ Connected with result code {rc}")
 
 def on_message(client, userdata, msg):
-    print(f"💬 Received on {msg.topic}: {msg.payload.decode()}")
+    print(f"📡 RECV <- topic={msg.topic} payload={msg.payload.decode()}")
 
-def run_pub(client_id, topic, payload, use_tls):
-    client = mqtt.Client(client_id=client_id, userdata={"mode": "pub", "topic": topic})
-    if use_tls:
-        client.tls_set(tls_version=ssl.PROTOCOL_TLS)
-        client.connect(BROKER_SECURE, PORT_SECURE, 60)
-        print("🔒 Using TLS (encrypted channel)")
-    else:
-        client.connect(BROKER_UNSECURE, PORT_UNSECURE, 60)
-        print("⚠️ Using Unsecure connection")
+def run_pub(client_id, topic, payload, secure):
+    port = 8883 if secure else 1883
+    client = make_client(client_id, secure)
+    client.on_connect = on_connect
+    client.connect(BROKER, port)
     client.loop_start()
+    time.sleep(1)
     for i in range(3):
         msg = f"{payload} [{i}]"
-        print("🚀 Publishing:", msg)
+        print(f"🚀 PUB -> {msg}")
         client.publish(topic, msg)
         time.sleep(1)
     client.loop_stop()
     client.disconnect()
+    print("✅ Publisher finished sending.")
 
-def run_sub(client_id, topic, use_tls):
-    client = mqtt.Client(client_id=client_id, userdata={"mode": "sub", "topic": topic})
+def run_sub(client_id, topic, secure):
+    port = 8883 if secure else 1883
+    client = make_client(client_id, secure)
     client.on_connect = on_connect
     client.on_message = on_message
-    if use_tls:
-        client.tls_set(tls_version=ssl.PROTOCOL_TLS)
-        client.connect(BROKER_SECURE, PORT_SECURE, 60)
-        print("🔒 Subscribing using TLS (encrypted channel)")
-    else:
-        client.connect(BROKER_UNSECURE, PORT_UNSECURE, 60)
-        print("⚠️ Subscribing using Unsecure connection")
-    client.loop_forever()
+    client.connect(BROKER, port)
+    client.subscribe(topic)
+    client.loop_start()
+    print(f"📡 Subscribed to {topic} (Secure={secure}) — waiting for messages...")
+    try:
+        for _ in range(15):  # Keep alive ~15s
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
+    client.loop_stop()
+    client.disconnect()
+    print("🛑 Subscriber stopped.")
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--mode", choices=["pub", "sub"], default="pub")
     p.add_argument("--client", default="client1")
     p.add_argument("--topic", default="/vit/test")
-    p.add_argument("--payload", default="Hello MQTT!")
-    p.add_argument("--tls", action="store_true")
+    p.add_argument("--payload", default="hello")
+    p.add_argument("--secure", action="store_true")
     args = p.parse_args()
 
     if args.mode == "pub":
-        run_pub(args.client, args.topic, args.payload, args.tls)
+        run_pub(args.client, args.topic, args.payload, args.secure)
     else:
-        run_sub(args.client, args.topic, args.tls)
+        run_sub(args.client, args.topic, args.secure)
