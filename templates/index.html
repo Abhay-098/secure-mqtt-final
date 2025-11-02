@@ -1,80 +1,161 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>🔒 Secure MQTT Web App (TLS + Client Certs)</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🔒 Secure MQTT Web App (TLS + Certificates)</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: #0f172a;
+      color: #e2e8f0;
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 40px 20px;
+    }
+    h1 {
+      color: #38bdf8;
+      font-weight: 600;
+      margin-bottom: 25px;
+      text-align: center;
+    }
+    .card {
+      background-color: #1e293b;
+      color: #e2e8f0;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      margin-bottom: 30px;
+      width: 100%;
+      max-width: 800px;
+    }
+    .form-check-label { cursor: pointer; }
+    button {
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      border-radius: 10px;
+    }
+    #log-box {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 15px;
+      max-height: 350px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.9rem;
+      color: #94a3b8;
+      white-space: pre-line;
+    }
+    .log-secure { color: #4ade80; }
+    .log-unsecure { color: #f87171; }
+    .log-system { color: #60a5fa; }
+  </style>
 </head>
-<body class="bg-slate-900 text-white p-6">
-  <div class="max-w-3xl mx-auto space-y-6">
-    <h1 class="text-3xl font-bold text-center mb-4">🔒 Secure MQTT Web App (TLS + Certs)</h1>
+<body>
+  <h1>🔒 Secure MQTT Web App (TLS + Client Certs)</h1>
 
-    <div class="bg-slate-800 p-4 rounded-lg">
-      <h2 class="text-xl font-semibold mb-2">1️⃣ Generate Certificates</h2>
-      <p class="text-gray-400 text-sm mb-3">Automatically generates or simulates CA, broker, and client certificates.</p>
-      <button id="genBtn" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg">Generate Certificates</button>
-      <p id="genOutput" class="mt-3 text-green-400"></p>
-    </div>
+  <!-- ============ CERTIFICATE SECTION ============ -->
+  <div class="card">
+    <h5>1️⃣ Generate Certificates</h5>
+    <p>This runs <code>generate_certs.sh</code> locally or simulates it on Render.</p>
+    <button class="btn btn-primary" id="genBtn">Generate Certificates</button>
+    <div id="genResult" class="mt-3 text-info"></div>
+  </div>
 
-    <div class="bg-slate-800 p-4 rounded-lg">
-      <h2 class="text-xl font-semibold mb-2">2️⃣ Start MQTT Client</h2>
-      <label class="block">Mode:</label>
-      <select id="mode" class="text-black px-2 py-1 rounded">
-        <option value="pub">Publisher</option>
-        <option value="sub">Subscriber</option>
-      </select>
-
-      <label class="block mt-2">Client ID:</label>
-      <input id="client" value="client1" class="text-black px-2 py-1 rounded w-full" />
-
-      <label class="block mt-2">Topic:</label>
-      <input id="topic" value="/vit/test" class="text-black px-2 py-1 rounded w-full" />
-
-      <label class="block mt-2">Payload:</label>
-      <input id="payload" value="Hello MQTT!" class="text-black px-2 py-1 rounded w-full" />
-
-      <div class="mt-3">
-        <input type="checkbox" id="tls" /> <label for="tls">Use TLS (Encrypted Mode)</label>
+  <!-- ============ MQTT CLIENT SECTION ============ -->
+  <div class="card">
+    <h5>2️⃣ Start MQTT Client</h5>
+    <div class="row g-3 mt-2">
+      <div class="col-md-4">
+        <label class="form-label">Mode</label>
+        <select id="mode" class="form-select">
+          <option value="pub">Publisher</option>
+          <option value="sub">Subscriber</option>
+        </select>
       </div>
-
-      <button id="startBtn" class="bg-green-600 hover:bg-green-700 mt-3 px-4 py-2 rounded-lg">Start Client</button>
+      <div class="col-md-4">
+        <label class="form-label">Client ID</label>
+        <input id="client" type="text" class="form-control" placeholder="client1" value="client1">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Topic</label>
+        <input id="topic" type="text" class="form-control" placeholder="/vit/test" value="/vit/test">
+      </div>
+      <div class="col-md-12">
+        <label class="form-label">Payload</label>
+        <input id="payload" type="text" class="form-control" placeholder="Hello MQTT!" value="Hello MQTT!">
+      </div>
+      <div class="col-md-6 d-flex align-items-center mt-2">
+        <input class="form-check-input me-2" type="checkbox" id="secure">
+        <label for="secure" class="form-check-label">Use TLS (Encrypted Secure Mode)</label>
+      </div>
+      <div class="col-md-12 mt-3">
+        <button class="btn btn-success w-100" id="startBtn">🚀 Start Client</button>
+      </div>
     </div>
+    <div id="startResult" class="mt-3 text-info"></div>
+  </div>
 
-    <div class="bg-black p-3 rounded-lg font-mono h-64 overflow-y-auto" id="logBox"></div>
+  <!-- ============ LOG BOX ============ -->
+  <div class="card">
+    <h5>📡 Live MQTT Logs</h5>
+    <div id="log-box"></div>
   </div>
 
   <script>
     const socket = io();
-    socket.on('mqtt_log', data => {
-      const box = document.getElementById('logBox');
-      box.innerHTML += data.line + "<br>";
+
+    function appendLog(message, type="system") {
+      const box = document.getElementById("log-box");
+      const div = document.createElement("div");
+      div.classList.add(`log-${type}`);
+      div.textContent = message;
+      box.appendChild(div);
       box.scrollTop = box.scrollHeight;
+    }
+
+    socket.on("mqtt_log", (data) => {
+      let log = data.log || "";
+      if (log.includes("PUB ->") || log.includes("Publisher")) appendLog(log, "unsecure");
+      else if (log.includes("RECV <-") || log.includes("Secure")) appendLog(log, "secure");
+      else appendLog(log, "system");
     });
 
-    document.getElementById('genBtn').onclick = async () => {
-      const res = await fetch('/generate', { method: 'POST' });
+    // Generate Certificates
+    document.getElementById("genBtn").addEventListener("click", async () => {
+      document.getElementById("genResult").innerText = "⏳ Generating...";
+      const res = await fetch("/generate", { method: "POST" });
       const data = await res.json();
-      document.getElementById('genOutput').textContent = data.output;
-    };
+      document.getElementById("genResult").innerText = data.output;
+      appendLog(data.output, "system");
+    });
 
-    document.getElementById('startBtn').onclick = async () => {
-      const body = {
-        mode: document.getElementById('mode').value,
-        client: document.getElementById('client').value,
-        topic: document.getElementById('topic').value,
-        payload: document.getElementById('payload').value,
-        use_tls: document.getElementById('tls').checked
+    // Start Client
+    document.getElementById("startBtn").addEventListener("click", async () => {
+      const payload = {
+        mode: document.getElementById("mode").value,
+        client: document.getElementById("client").value,
+        topic: document.getElementById("topic").value,
+        payload: document.getElementById("payload").value,
+        secure: document.getElementById("secure").checked
       };
-      const res = await fetch('/start_client', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+      document.getElementById("startResult").innerText = "⏳ Starting client...";
+      const res = await fetch("/start_client", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
-      document.getElementById('logBox').innerHTML += 
-        `▶️ Started ${body.mode} (${body.use_tls ? "🔒 Secure" : "⚠️ Unsecure"}) → ${JSON.stringify(data)}<br>`;
-    };
+      const mode = payload.secure ? "🔒 Secure" : "⚠️ Unsecure";
+      document.getElementById("startResult").innerText = `▶️ Started ${payload.mode} (${mode}) → PID ${data.pid}`;
+      appendLog(`▶️ Started ${payload.mode} (${mode}) → PID ${data.pid}`, payload.secure ? "secure" : "unsecure");
+    });
   </script>
 </body>
 </html>
